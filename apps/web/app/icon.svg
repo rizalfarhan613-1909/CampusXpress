@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Campus Express">
+  <rect width="64" height="64" rx="16" fill="#006C4A" />
+  <path
+    d="M35.6 6 17 36.4h11.2L25.6 58 45 26.2H33.4L35.6 6Z"
+    fill="#8DF3CE"
+  />
+</svg>

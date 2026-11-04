@@ -1,0 +1,17 @@
+# Header keamanan & cache untuk hosting statis (Cloudflare Pages).
+# Sumber: docs/tech.md §6.11. Berkas ini ikut tersalin ke `out/` saat `next build`.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https:; object-src 'none'
+
+# Aset build bersifat immutable.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML harus selalu divalidasi ulang agar konten baru langsung terlihat.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

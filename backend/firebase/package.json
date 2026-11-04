@@ -1,0 +1,10 @@
+{
+  "name": "@campus-express/firebase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Konfigurasi emulator, rules, dan pengujian integrasi Firestore.",
+  "scripts": {
+    "emulators": "firebase emulators:start --only firestore,auth --project demo-campus-express",
+    "test": "firebase emulators:exec --only firestore --project demo-campus-express \"node test-engine.mjs\""
+  }
+}

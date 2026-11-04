@@ -1,0 +1,319 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function campusMail() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@mhs[.]uin[.]ac[.]id');
+    }
+
+    function active() {
+      return campusMail()
+        && request.auth.token.get('suspended', false) != true;
+    }
+
+    function isAdmin() {
+      return active() && request.auth.token.get('admin', false) == true;
+    }
+
+    function isDriver() {
+      return active() && request.auth.token.get('driver', false) == true;
+    }
+
+    function myMerchantId() {
+      return request.auth.token.get('merchant_id', '');
+    }
+
+    function isMerchant() {
+      return active() && myMerchantId() != '';
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function onlyChanges(keys) {
+      return changedKeys().hasOnly(keys);
+    }
+
+    function orderData(orderId) {
+      return get(/databases/$(database)/documents/orders/$(orderId)).data;
+    }
+
+    function isOrderParticipant(orderId) {
+      return active() && (
+        orderData(orderId).get('consumer_id', '') == request.auth.uid
+        || orderData(orderId).get('driver_id', '') == request.auth.uid
+        || (isMerchant() && orderData(orderId).get('merchant_id', '') == myMerchantId())
+      );
+    }
+
+    // ---------------------------------------------------------------- users
+    match /users/{userId} {
+      allow get: if active() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, delete: if false;
+
+      allow update: if active()
+        && request.auth.uid == userId
+        && onlyChanges(['name', 'phone'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[+]62[0-9]{8,15}$');
+
+      allow update: if isAdmin() && onlyChanges(['is_verified']);
+    }
+
+    // ------------------------------------------------------------ landmarks
+    match /landmarks/{landmarkId} {
+      allow read: if active();
+      allow create: if isAdmin()
+        && request.resource.data.id == landmarkId
+        && request.resource.data.keys().hasOnly(['id', 'name', 'zone_group'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.zone_group is string
+        && request.resource.data.zone_group.size() >= 1
+        && request.resource.data.zone_group.size() <= 60;
+      allow update: if isAdmin()
+        && onlyChanges(['name', 'zone_group'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.zone_group is string
+        && request.resource.data.zone_group.size() >= 1;
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ merchants
+    match /merchants/{merchantId} {
+      allow read: if active();
+      allow create, delete: if false;
+
+      allow update: if isMerchant()
+        && merchantId == myMerchantId()
+        && resource.data.get('id', '') == merchantId
+        && onlyChanges(['store_name', 'is_open', 'delivery_type'])
+        && request.resource.data.store_name is string
+        && request.resource.data.store_name.size() >= 1
+        && request.resource.data.store_name.size() <= 120
+        && request.resource.data.is_open is bool
+        && request.resource.data.delivery_type in ['pickup', 'delivery', 'both'];
+
+      allow update: if isAdmin()
+        && onlyChanges(['store_name', 'is_open', 'delivery_type']);
+    }
+
+    // ------------------------------------------------------------- products
+    match /products/{productId} {
+      function validProduct() {
+        return request.resource.data.id == productId
+          && request.resource.data.merchant_id is string
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.price is int
+          && request.resource.data.price > 0
+          && request.resource.data.is_available is bool
+          && request.resource.data.image_url is string
+          && request.resource.data.image_url.size() <= 2048
+          && request.resource.data.variants is list
+          && request.resource.data.variants.size() <= 20;
+      }
+
+      allow read: if active();
+
+      allow create: if isMerchant()
+        && request.resource.data.merchant_id == myMerchantId()
+        && validProduct()
+        && request.resource.data.keys().hasOnly([
+          'id', 'merchant_id', 'name', 'price', 'is_available', 'image_url', 'variants'
+        ]);
+
+      allow update: if isMerchant()
+        && resource.data.get('merchant_id', '') == myMerchantId()
+        && onlyChanges(['name', 'price', 'is_available', 'image_url', 'variants'])
+        && validProduct();
+
+      allow delete: if isMerchant()
+        && resource.data.get('merchant_id', '') == myMerchantId();
+
+      allow update: if isAdmin()
+        && onlyChanges(['is_available']);
+
+      allow delete: if isAdmin();
+    }
+
+    // --------------------------------------------------------------- orders
+    match /orders/{orderId} {
+      function isConsumerOf() {
+        return resource.data.get('consumer_id', '') == request.auth.uid;
+      }
+
+      function isMerchantOf() {
+        return isMerchant()
+          && resource.data.get('merchant_id', '') == myMerchantId();
+      }
+
+      function isDriverOf() {
+        return resource.data.get('driver_id', '') == request.auth.uid;
+      }
+
+      function isDriverStep(from, to) {
+        return (from == 'CLAIMED' && to == 'AT_PICKUP')
+          || (from == 'AT_PICKUP' && to == 'ON_DELIVERY')
+          || (from == 'ON_DELIVERY' && to == 'ARRIVED');
+      }
+
+      allow get: if active()
+        && (isConsumerOf() || isMerchantOf() || isDriverOf() || isAdmin());
+
+      allow list: if active() && (
+        isConsumerOf()
+        || isMerchantOf()
+        || isDriverOf()
+        || isAdmin()
+        || (isDriver() && resource.data.get('status', '') == 'AWAITING_DRIVER')
+      );
+
+      allow create: if active()
+        && request.resource.data.id == orderId
+        && request.resource.data.consumer_id == request.auth.uid
+        && request.resource.data.driver_id == null
+        && request.resource.data.status == 'PLACED'
+        && request.resource.data.order_type in ['numpang', 'jastip', 'paket', 'umkm']
+        && request.resource.data.payment_method in ['COD', 'QRIS_STATIC']
+        && request.resource.data.pickup_landmark_id
+          != request.resource.data.destination_landmark_id
+        && request.resource.data.total_price is int
+        && request.resource.data.total_price > 0
+        && request.resource.data.total_price <= 500000
+        && request.resource.data.delivery_fee is int
+        && request.resource.data.delivery_fee >= 0
+        && request.resource.data.commission_fee is int
+        && request.resource.data.commission_fee >= 50
+        && request.resource.data.commission_fee <= 2500
+        && (request.resource.data.payment_method != 'COD'
+          || request.resource.data.total_price <= 200000)
+        && (request.resource.data.order_type != 'umkm'
+          || request.resource.data.merchant_id is string)
+        && 'merchant_id' in request.resource.data
+        && request.resource.data.created_at == request.time
+        && request.resource.data.keys().hasOnly([
+          'id', 'consumer_id', 'driver_id', 'merchant_id', 'order_type',
+          'pickup_landmark_id', 'destination_landmark_id', 'total_price',
+          'delivery_fee', 'commission_fee', 'payment_method', 'status', 'created_at'
+        ]);
+
+      allow update: if active() && (
+        (isConsumerOf()
+          && resource.data.status == 'PLACED'
+          && request.resource.data.status == 'CANCELLED'
+          && onlyChanges(['status']))
+        || (isMerchantOf()
+          && resource.data.status == 'PLACED'
+          && request.resource.data.status in ['ACCEPTED', 'CANCELLED']
+          && onlyChanges(['status']))
+        || (isMerchantOf()
+          && resource.data.status == 'ACCEPTED'
+          && request.resource.data.status in ['READY', 'AWAITING_DRIVER']
+          && onlyChanges(['status']))
+        || (isMerchantOf()
+          && resource.data.status == 'READY'
+          && request.resource.data.status == 'AWAITING_DRIVER'
+          && onlyChanges(['status']))
+        || (isDriverOf()
+          && isDriverStep(resource.data.status, request.resource.data.status)
+          && onlyChanges(['status']))
+      );
+
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isOrderParticipant(orderId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /secrets/{secretId} {
+        allow get: if active()
+          && secretId == 'handover'
+          && orderData(orderId).get('consumer_id', '') == request.auth.uid;
+        allow list, write: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------- chats
+    match /chats/{orderId} {
+      function canRead() {
+        return active() && (
+          orderData(orderId).get('consumer_id', '') == request.auth.uid
+          || orderData(orderId).get('driver_id', '') == request.auth.uid
+          || (isMerchant()
+            && orderData(orderId).get('merchant_id', '') == myMerchantId())
+          || (isAdmin() && orderData(orderId).get('status', '') == 'DISPUTED')
+        );
+      }
+
+      allow get: if canRead();
+      allow list, write: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if canRead();
+
+        allow create: if canRead()
+          && !(orderData(orderId).get('status', '')
+            in ['COMPLETED', 'CANCELLED', 'EXPIRED'])
+          && request.resource.data.id == messageId
+          && request.resource.data.order_id == orderId
+          && request.resource.data.sender_id == request.auth.uid
+          && request.resource.data.created_at == request.time
+          && 'text' in request.resource.data
+          && 'image_url' in request.resource.data
+          && (request.resource.data.text == null
+            || (request.resource.data.text is string
+              && request.resource.data.text.size() <= 500))
+          && (request.resource.data.image_url == null
+            || (request.resource.data.image_url is string
+              && request.resource.data.image_url.size() <= 2048))
+          && (request.resource.data.text != null
+            || request.resource.data.image_url != null)
+          && request.resource.data.keys().hasOnly([
+            'id', 'order_id', 'sender_id', 'text', 'image_url', 'created_at'
+          ]);
+
+        allow update, delete: if false;
+      }
+    }
+
+    // --------------------------------------------------------- wallet ledger
+    match /wallet_ledger/{entryId} {
+      allow get, list: if active() && (
+        resource.data.get('driver_id', '') == request.auth.uid || isAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+
+    // ------------------------------------------------- config and audit log
+    match /config/{docId} {
+      allow get, list: if active();
+      allow write: if isAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}
