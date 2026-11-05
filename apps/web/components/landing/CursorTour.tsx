@@ -91,9 +91,9 @@ function PhoneMock() {
           Siap, PIN serah terima dikirim ya.
         </p>
         <div className="mt-auto grid grid-cols-4 gap-1">
-          {['849', '2', '·', '·'].map((digit) => (
+          {['849', '2', '·', '·'].map((digit, idx) => (
             <span
-              key={digit}
+              key={`${digit}-${idx}`}
               className="grid h-7 place-items-center rounded-sm bg-lav-200 font-display text-caption font-bold text-primary"
             >
               {digit}

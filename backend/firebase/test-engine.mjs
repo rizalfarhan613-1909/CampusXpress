@@ -50,6 +50,18 @@ const {
   calculateDeliveryFee,
   ZONE_FARE_MATRIX,
 } = require('../functions/lib/core/fareMatrix.js');
+const { submitBidEngine } = require('../functions/lib/core/submitBid.js');
+const { acceptBidEngine } = require('../functions/lib/core/acceptBid.js');
+const {
+  recommendFare,
+  fetchOsrmRoute,
+  estimateFare,
+  FARE_TIERS,
+} = require('../functions/lib/core/osrmRouting.js');
+const {
+  TUNTUNGAN_HUB_LANDMARKS,
+  seedTuntunganHub,
+} = require('../functions/lib/core/tuntunganHub.js');
 
 const projectId = process.env.GCLOUD_PROJECT;
 if (getApps().length === 0) initializeApp({ projectId });
@@ -782,6 +794,228 @@ async function main() {
       (await getDoc('orders/order_expire_placed/events/expired_merchant_timeout'))
         .exists,
       true,
+    );
+  });
+
+  // ------------------------------------------------- Fase 5: OSRM & tarif
+  await test('OSRM tier: rekomendasi harga sesuai radius Tuntungan', async () => {
+    const tier1 = recommendFare(800);
+    assert.equal(tier1.tier, 1);
+    assert.equal(tier1.basePrice, 5_000);
+    assert.equal(tier1.minPrice, 5_000);
+    assert.equal(tier1.maxPrice, 6_000);
+
+    const tier2 = recommendFare(2_100);
+    assert.equal(tier2.tier, 2);
+    assert.equal(tier2.minPrice, 6_000);
+    assert.equal(tier2.maxPrice, 8_000);
+    assert.equal(
+      tier2.label,
+      'Jarak 2.1 km • Rekomendasi: Rp 6.000 - Rp 8.000',
+    );
+
+    const tier3 = recommendFare(3_000);
+    assert.equal(tier3.tier, 3);
+    assert.equal(tier3.basePrice, 9_000);
+    assert.equal(tier3.minPrice, 8_000);
+    assert.equal(tier3.maxPrice, 10_000);
+
+    assert.equal(FARE_TIERS.length, 3);
+  });
+
+  await test('OSRM: fallback haversine saat jaringan gagal + parsing respons', async () => {
+    const from = { latitude: 3.5479, longitude: 98.6469 };
+    const to = { latitude: 3.5523, longitude: 98.6542 };
+
+    const offline = await fetchOsrmRoute(from, to, {
+      fetcher: async () => {
+        throw new Error('offline');
+      },
+    });
+    assert.equal(offline.source, 'HAVERSINE');
+    assert.ok(offline.distanceMeters > 0);
+
+    const online = await fetchOsrmRoute(from, to, {
+      fetcher: async () => ({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [{ distance: 2_100, duration: 378 }],
+        }),
+      }),
+    });
+    assert.equal(online.source, 'OSRM');
+    assert.equal(online.distanceMeters, 2_100);
+    assert.equal(online.durationSeconds, 378);
+
+    const estimate = await estimateFare(from, to, {
+      fetcher: async () => ({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [{ distance: 2_100, duration: 378 }],
+        }),
+      }),
+    });
+    assert.equal(estimate.tier, 2);
+    assert.equal(estimate.minPrice, 6_000);
+    assert.equal(estimate.maxPrice, 8_000);
+  });
+
+  await test('Seeder hub UINSU Tuntungan: 6 landmark + config tier', async () => {
+    const result = await seedTuntunganHub(db);
+    assert.equal(result.landmarkCount, 6);
+    assert.equal(result.zone1Count, 3);
+    assert.equal(result.zone2Count, 1);
+    assert.equal(result.zone3Count, 2);
+
+    const snapshot = await db.collection('landmarks').get();
+    for (const landmark of TUNTUNGAN_HUB_LANDMARKS) {
+      assert.equal(docZone(snapshot, landmark.id), landmark.zone_group);
+    }
+
+    const config = await getDoc('config/tuntungan_hub');
+    assert.equal(config.exists, true);
+    assert.equal(config.get('hub_id'), 'uinsu-tuntungan');
+    assert.equal(config.get('fare_tiers').length, 3);
+  });
+
+  // --------------------------------------------- Fase 5: Bidding Engine
+  await test('submitBid: saldo < Rp 5.000 gagal, saldo cukup sukses', async () => {
+    await createUser('driver_bid_low', { balance: 4_999 });
+    await createOrder('order_bid_low', { status: 'AWAITING_DRIVER' });
+    await expectGatewayError(
+      () =>
+        submitBidEngine(db, {
+          driverId: 'driver_bid_low',
+          orderId: 'order_bid_low',
+          offeredPrice: 7_000,
+        }),
+      'INSUFFICIENT_BALANCE',
+    );
+    assert.equal(
+      (await getDoc('orders/order_bid_low/bids/bid_driver_bid_low')).exists,
+      false,
+    );
+
+    await createUser('driver_bid_ok', { balance: 10_000 });
+    await createOrder('order_bid_ok', { status: 'AWAITING_DRIVER' });
+
+    const result = await submitBidEngine(db, {
+      driverId: 'driver_bid_ok',
+      orderId: 'order_bid_ok',
+      offeredPrice: 7_000,
+      estimatedArrivalMinutes: 8,
+      platNumber: 'BK 1234 AB',
+      vehicleModel: 'Honda Beat',
+    });
+    assert.equal(result.offeredPrice, 7_000);
+    assert.equal(result.commissionEstimate, 50);
+    assert.equal(result.updated, false);
+
+    const order = await getDoc('orders/order_bid_ok');
+    assert.equal(order.get('status'), 'SEARCHING_BIDS');
+    assert.equal(order.get('bid_count'), 1);
+
+    const bid = await getDoc('orders/order_bid_ok/bids/bid_driver_bid_ok');
+    assert.equal(bid.exists, true);
+    assert.equal(bid.get('offeredPrice'), 7_000);
+    assert.equal(bid.get('status'), 'PENDING');
+    assert.equal(bid.get('platNumber'), 'BK 1234 AB');
+    assert.equal(bid.get('estimatedArrivalMinutes'), 8);
+    assert.equal(bid.get('driverId'), 'driver_bid_ok');
+  });
+
+  await test('submitBid: offeredPrice < Rp 3.000 ditolak', async () => {
+    await createUser('driver_bid_cheap', { balance: 10_000 });
+    await createOrder('order_bid_cheap', { status: 'AWAITING_DRIVER' });
+
+    await expectGatewayError(
+      () =>
+        submitBidEngine(db, {
+          driverId: 'driver_bid_cheap',
+          orderId: 'order_bid_cheap',
+          offeredPrice: 2_999,
+        }),
+      'BID_TOO_LOW',
+    );
+    assert.equal(
+      (await getDoc('orders/order_bid_cheap/bids/bid_driver_bid_cheap')).exists,
+      false,
+    );
+  });
+
+  await test('acceptBid: atomik kunci order + komisi 0,5% + bid lain REJECTED', async () => {
+    await createUser('driver_accept_a', { balance: 10_000 });
+    await createUser('driver_accept_b', { balance: 10_000 });
+    await createOrder('order_accept', { status: 'AWAITING_DRIVER' });
+
+    await submitBidEngine(db, {
+      driverId: 'driver_accept_a',
+      orderId: 'order_accept',
+      offeredPrice: 7_000,
+      estimatedArrivalMinutes: 6,
+    });
+    await submitBidEngine(db, {
+      driverId: 'driver_accept_b',
+      orderId: 'order_accept',
+      offeredPrice: 8_500,
+      estimatedArrivalMinutes: 9,
+    });
+
+    // Bukan pemilik order -> ORDER_NOT_OWNER.
+    await expectGatewayError(
+      () =>
+        acceptBidEngine(db, {
+          consumerId: 'intruder',
+          orderId: 'order_accept',
+          bidId: 'bid_driver_accept_a',
+        }),
+      'ORDER_NOT_OWNER',
+    );
+
+    const result = await acceptBidEngine(db, {
+      consumerId: 'consumer_test',
+      orderId: 'order_accept',
+      bidId: 'bid_driver_accept_a',
+    });
+    assert.equal(result.finalPrice, 7_000);
+    assert.equal(result.commission, 50);
+    assert.equal(result.balanceAfter, 9_950);
+    assert.equal(result.rejectedBids, 1);
+
+    const order = await getDoc('orders/order_accept');
+    assert.equal(order.get('status'), 'ACCEPTED');
+    assert.equal(order.get('driver_id'), 'driver_accept_a');
+    assert.equal(order.get('final_price'), 7_000);
+    assert.equal(order.get('total_price'), 7_000);
+    assert.equal(order.get('commission_fee'), 50);
+
+    const winnerBid = await getDoc('orders/order_accept/bids/bid_driver_accept_a');
+    assert.equal(winnerBid.get('status'), 'ACCEPTED');
+    const loserBid = await getDoc('orders/order_accept/bids/bid_driver_accept_b');
+    assert.equal(loserBid.get('status'), 'REJECTED');
+    assert.equal(loserBid.get('rejected_reason'), 'BID_NOT_SELECTED');
+
+    const driver = await getDoc('users/driver_accept_a');
+    assert.equal(driver.get('wallet_balance'), 9_950);
+    assert.equal(driver.get('active_jobs'), 1);
+
+    const ledger = await getDoc('wallet_ledger/commission_order_accept');
+    assert.equal(ledger.exists, true);
+    assert.equal(ledger.get('amount'), -50);
+    assert.equal(ledger.get('balance_after'), 9_950);
+    assert.equal(ledger.get('idempotency_key'), 'commission:order_accept');
+
+    // Order sudah terkunci -> penawaran kedua tidak bisa diterima.
+    await expectGatewayError(
+      () =>
+        acceptBidEngine(db, {
+          consumerId: 'consumer_test',
+          orderId: 'order_accept',
+          bidId: 'bid_driver_accept_b',
+        }),
+      'ORDER_NOT_BIDDING',
     );
   });
 

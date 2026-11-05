@@ -185,7 +185,7 @@ service cloud.firestore {
         || isMerchantOf()
         || isDriverOf()
         || isAdmin()
-        || (isDriver() && resource.data.get('status', '') == 'AWAITING_DRIVER')
+        || (isDriver() && resource.data.get('status', '') in ['AWAITING_DRIVER', 'SEARCHING_BIDS'])
       );
 
       allow create: if active()
@@ -251,6 +251,14 @@ service cloud.firestore {
           && secretId == 'handover'
           && orderData(orderId).get('consumer_id', '') == request.auth.uid;
         allow list, write: if false;
+      }
+
+      // Fase 5 — Reverse Auction. Penulisan bid hanya lewat Gateway/Functions
+      // (Admin SDK melewati rules); klien hanya membaca penawaran.
+      match /bids/{bidId} {
+        allow read: if isOrderParticipant(orderId) || isAdmin();
+        allow list: if isOrderParticipant(orderId) || isAdmin();
+        allow write: if false;
       }
     }
 

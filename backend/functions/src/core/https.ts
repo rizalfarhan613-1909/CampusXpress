@@ -21,6 +21,11 @@ const CODE_MAP: Record<string, ConstructorParameters<typeof HttpsError>[0]> = {
   NOT_ASSIGNED: 'permission-denied',
   COD_LIMIT_EXCEEDED: 'failed-precondition',
   IDEMPOTENCY_CONFLICT: 'already-exists',
+  BID_NOT_FOUND: 'not-found',
+  BID_TOO_LOW: 'invalid-argument',
+  BID_ALREADY_EXISTS: 'already-exists',
+  ORDER_NOT_OWNER: 'permission-denied',
+  ORDER_NOT_BIDDING: 'failed-precondition',
 };
 
 export function toHttpsError(error: unknown): HttpsError {

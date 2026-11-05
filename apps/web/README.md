@@ -61,16 +61,23 @@ melalui `next/font/google` sehingga tidak ada unduhan font saat runtime.
 
 ## Konfigurasi lingkungan (opsional)
 
-Salin `.env.local.example` → `.env.local`. Tanpa berkas ini aplikasi tetap berjalan
+Salin `.env.example` → `.env.local`. Tanpa berkas ini aplikasi tetap berjalan
 dalam **mode demo** (data contoh lokal, generator referral lokal):
 
 ```
 NEXT_PUBLIC_GATEWAY_URL=
+NEXT_PUBLIC_OSM_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 ```
+
+> **Keamanan.** `.env.local` hanya boleh berisi nilai publik. Kunci privat
+> (`R2_SECRET_ACCESS_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `URL_SIGNING_KEY`)
+> tidak pernah ada di frontend — semuanya menjadi secret Cloudflare Worker atau
+> Firebase Admin Functions. Jalankan `npm run security:audit` untuk memastikan
+> tidak ada kebocoran.
 
 ## Batasan yang diketahui
 

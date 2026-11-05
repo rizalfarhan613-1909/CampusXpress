@@ -39,6 +39,14 @@
     @apply rounded-lg border border-line-subtle bg-surface p-4 shadow-card;
   }
 
+  /* Marker kustom Leaflet (`L.divIcon`): netralkan kotak putih bawaan agar badge
+     SVG (motor/UMKM/tujuan) tampil bersih tanpa latar atau bingkai. */
+  .ce-marker {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
   .ce-panel {
     @apply rounded-lg border border-line-subtle bg-surface shadow-card;
   }

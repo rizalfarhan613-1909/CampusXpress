@@ -12,6 +12,12 @@ export const COD_MAX = 200_000;
 export const DRIVER_MIN_BALANCE = 5_000;
 export const MAX_ACTIVE_JOBS = 2;
 
+/** Fase 5 — Reverse Auction (Bidding Engine). */
+export const BID_MIN_PRICE = 3_000;
+export const BID_MAX_PRICE = 500_000;
+export const BID_MIN_ARRIVAL_MINUTES = 1;
+export const BID_MAX_ARRIVAL_MINUTES = 120;
+
 /** PRD M09 FR-09.3. */
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MS = 10 * 60 * 1000;

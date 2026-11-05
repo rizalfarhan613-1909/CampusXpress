@@ -7,6 +7,7 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'READY'
   | 'AWAITING_DRIVER'
+  | 'SEARCHING_BIDS'
   | 'CLAIMED'
   | 'AT_PICKUP'
   | 'ON_DELIVERY'
@@ -15,6 +16,23 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'EXPIRED'
   | 'DISPUTED';
+
+/** Fase 5 — status penawaran pada Reverse Auction (`orders/{id}/bids/{bidId}`). */
+export type BidStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export interface Bid {
+  bidId: string;
+  driverId: string;
+  driverName: string;
+  driverPhoto: string | null;
+  rating: number;
+  platNumber: string;
+  vehicleModel: string;
+  offeredPrice: number;
+  estimatedArrivalMinutes: number;
+  createdAt: FirestoreTimestamp;
+  status: BidStatus;
+}
 
 export type PaymentMethod = 'COD' | 'QRIS_STATIC';
 
@@ -87,6 +105,10 @@ export interface Order {
   total_price: number;
   delivery_fee: number;
   commission_fee: number;
+  /** Fase 5 — harga final dari bid yang disetujui (`acceptBid`). */
+  final_price?: number;
+  /** Fase 5 — jumlah penawaran masuk (counter atomik). */
+  bid_count?: number;
   payment_method: PaymentMethod;
   status: OrderStatus;
   /** Consumer-only. Stored in orders/{id}/secrets/handover, never on the order document. */

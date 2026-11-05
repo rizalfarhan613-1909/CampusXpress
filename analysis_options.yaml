@@ -1,0 +1,13 @@
+# Analisis Dart tingkat monorepo (Fase 5).
+#
+# Berkas ini mencegah Dart Analyzer VS Code menganalisis templat pihak ketiga
+# yang dibawa npm, terutama:
+#   node_modules/firebase-tools/templates/init/functions/dart/Server.dart
+# Templat tersebut bukan bagian workspace Flutter (`apps/mobile`) sehingga tidak
+# boleh memunculkan noise pada tab Problems.
+analyzer:
+  exclude:
+    - 'node_modules/**'
+    - '**/node_modules/**'
+    - '**/.dart_tool/**'
+    - '**/build/**'

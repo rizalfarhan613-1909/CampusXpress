@@ -1,0 +1,19 @@
+{
+  "dart.analyzerExclude": [
+    "**/node_modules/**",
+    "**/.dart_tool/**",
+    "**/build/**"
+  ],
+  "dart.analysisExcludedFolders": [
+    "node_modules",
+    ".dart_tool",
+    "build"
+  ],
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.dart_tool/**": true,
+    "**/build/**": true
+  },
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore"
+}

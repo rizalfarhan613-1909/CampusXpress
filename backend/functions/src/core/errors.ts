@@ -23,7 +23,12 @@ export type GatewayErrorCode =
   | 'PIN_LOCKED'
   | 'NOT_ASSIGNED'
   | 'COD_LIMIT_EXCEEDED'
-  | 'IDEMPOTENCY_CONFLICT';
+  | 'IDEMPOTENCY_CONFLICT'
+  | 'BID_NOT_FOUND'
+  | 'BID_TOO_LOW'
+  | 'BID_ALREADY_EXISTS'
+  | 'ORDER_NOT_OWNER'
+  | 'ORDER_NOT_BIDDING';
 
 export class GatewayError extends Error {
   readonly code: GatewayErrorCode;

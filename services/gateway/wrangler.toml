@@ -1,0 +1,29 @@
+// Cloudflare Worker binding untuk Trusted Gateway (docs/tech.md §8.1).
+name = "ce-gateway"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "campus-express-prod"
+ALLOWED_ORIGINS = "https://campusexpress.example,https://admin.campusexpress.example"
+R2_PUBLIC_DOMAIN = "https://cdn.campusexpress.example"
+APP_CHECK_ENFORCE = "false"
+
+# Rahasia: `wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON`
+#          `wrangler secret put URL_SIGNING_KEY`
+#          `wrangler secret put R2_ACCOUNT_ID`
+#          `wrangler secret put R2_ACCESS_KEY_ID`
+#          `wrangler secret put R2_SECRET_ACCESS_KEY`
+#          `wrangler secret put R2_BUCKET_NAME`
+#          `wrangler secret put R2_PRIVATE_BUCKET_NAME`
+
+[[r2_buckets]]
+binding = "PUBLIC_BUCKET"
+bucket_name = "ce-public"
+
+[[r2_buckets]]
+binding = "PRIVATE_BUCKET"
+bucket_name = "ce-private"
+
+[triggers]
+crons = ["*/2 * * * *", "0 17 * * *"]

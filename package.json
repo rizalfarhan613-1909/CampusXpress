@@ -8,12 +8,18 @@
     "build:functions": "npm --prefix backend/functions run build",
     "seed": "npm run build:functions && tsx scripts/seedLandmarks.ts",
     "seed:emulator": "npm run build:functions && tsx scripts/seedLandmarks.ts --emulator",
+    "seed:hub": "npm run build:functions && tsx scripts/seed-tuntungan-hub.ts",
+    "seed:hub:emulator": "npm run build:functions && tsx scripts/seed-tuntungan-hub.ts --emulator",
     "test:engine": "npm run build:functions && npm --prefix backend/firebase run test",
     "emulators": "firebase emulators:start --config backend/firebase/firebase.json --project demo-campus-express",
     "typecheck:functions": "npm --prefix backend/functions run typecheck",
     "typecheck:r2": "npm --prefix backend/cloudflare-r2 run typecheck",
+    "typecheck:gateway": "npm --prefix services/gateway run typecheck",
     "typecheck:web": "npm --prefix apps/web run typecheck",
-    "typecheck": "npm run typecheck:functions && npm run typecheck:r2",
+    "security:audit": "node scripts/check-frontend-secrets.mjs",
+    "typecheck": "npm run typecheck:functions && npm run typecheck:r2 && npm run typecheck:gateway && npm run typecheck:web",
+    "gateway:dev": "npm --prefix services/gateway run dev",
+    "gateway:deploy": "npm --prefix services/gateway run deploy",
     "web:dev": "npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
     "web:lint": "npm --prefix apps/web run lint"
@@ -22,6 +28,6 @@
     "@types/node": "^22.10.0",
     "firebase-tools": "^15.34.2",
     "tsx": "^4.23.15",
-    "typescript": "^5.7.2"
+    "typescript": "^6.0.3"
   }
 }
