@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "dev": "campus-express-dev",
+    "staging": "campus-express-stg",
+    "prod": "campus-express-prod"
+  }
+}

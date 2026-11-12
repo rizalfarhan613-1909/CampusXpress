@@ -5,6 +5,20 @@ node_modules/
 .env
 .env.*
 !.env.example
+!.env.production.example
+
+# Konfigurasi rilis yang dihasilkan skrip (berisi nilai per-lingkungan)
+apps/mobile/config/prod.json
+
+# Kredensial & artefak rilis (docs/secrets.md §6)
+*.jks
+*.keystore
+key.properties
+service-account*.json
+.dev.vars
+.wrangler/
+.release/
+.dryrun/
 
 # Firebase / emulator artifacts
 .firebase/

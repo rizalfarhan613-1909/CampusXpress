@@ -1,0 +1,9 @@
+{
+  "GATEWAY_BASE_URL": "https://campus-express-gateway.<subdomain>.workers.dev",
+  "OSM_TILE_URL": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "FIREBASE_API_KEY": "",
+  "FIREBASE_APP_ID": "",
+  "FIREBASE_MESSAGING_SENDER_ID": "",
+  "FIREBASE_PROJECT_ID": "campus-express-prod",
+  "FIREBASE_STORAGE_BUCKET": "campus-express-prod.firebasestorage.app"
+}

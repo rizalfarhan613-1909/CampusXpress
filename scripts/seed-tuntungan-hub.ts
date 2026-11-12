@@ -5,7 +5,11 @@
  *   npm run build:functions
  *   npx tsx scripts/seed-tuntungan-hub.ts --emulator
  *   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx tsx scripts/seed-tuntungan-hub.ts
- *   GOOGLE_APPLICATION_CREDENTIALS=... npx tsx scripts/seed-tuntungan-hub.ts
+ *   GOOGLE_APPLICATION_CREDENTIALS=... FIREBASE_PROJECT_ID=campus-express-prod \
+ *     npx tsx scripts/seed-tuntungan-hub.ts --yes
+ *
+ * Target non-emulator menulis ke Firestore NYATA sehingga wajib `--yes`
+ * (pengaman agar `npm run seed:hub` tidak tanpa sengaja menyentuh produksi).
  *
  * Menulis 6 landmark riil Kampus IV UINSU Tuntungan (Zona 1–3) + dokumen
  * `config/tuntungan_hub` berisi metadata tier rekomendasi OSRM. Idempoten.
@@ -28,6 +32,15 @@ const projectId =
   process.env.FIREBASE_PROJECT_ID ??
   process.env.GCLOUD_PROJECT ??
   'campus-express-dev';
+
+if (!process.env.FIRESTORE_EMULATOR_HOST && !args.has('--yes')) {
+  console.error(
+    `\nTarget "${projectId}" adalah Firestore NYATA (bukan emulator).\n` +
+      'Seeder menimpa 6 landmark hub + config/tuntungan_hub.\n' +
+      'Tinjau target lalu ulangi dengan --yes, atau jalankan dengan --emulator.\n',
+  );
+  process.exit(1);
+}
 
 const { applicationDefault, getApps, initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');

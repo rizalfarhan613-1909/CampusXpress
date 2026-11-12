@@ -1,0 +1,13 @@
+# ---------------------------------------------------------------------------
+# Template signing Android (JANGAN commit `key.properties` yang terisi).
+#
+# 1. Buat keystore (sekali, simpan di penyimpanan terenkripsi + cadangan):
+#    keytool -genkey -v -keystore campus-express-release.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias campusexpress
+# 2. Salin berkas ini menjadi android/key.properties dan isi nilainya.
+# 3. storeFile boleh absolut atau relatif terhadap apps/mobile/android/app.
+# ---------------------------------------------------------------------------
+storePassword=
+keyPassword=
+keyAlias=campusexpress
+storeFile=../campus-express-release.jks

@@ -1,4 +1,4 @@
-// Cloudflare Worker binding untuk Trusted Gateway (docs/tech.md §8.1).
+# Cloudflare Worker binding untuk Trusted Gateway (docs/tech.md §8.1).
 name = "ce-gateway"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
